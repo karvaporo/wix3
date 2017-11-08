@@ -20,7 +20,6 @@ static const LPCWSTR WIXSTDBA_VARIABLE_LANGUAGE_ID = L"WixStdBALanguageId";
 
 enum WIXSTDBA_STATE
 {
-    WIXSTDBA_STATE_OPTIONS,
     WIXSTDBA_STATE_FILESINUSE,
     WIXSTDBA_STATE_INITIALIZING,
     WIXSTDBA_STATE_INITIALIZED,
@@ -56,7 +55,6 @@ enum WIXSTDBA_PAGE
     WIXSTDBA_PAGE_LOADING,
     WIXSTDBA_PAGE_HELP,
     WIXSTDBA_PAGE_INSTALL,
-    WIXSTDBA_PAGE_OPTIONS,
     WIXSTDBA_PAGE_FILESINUSE,
     WIXSTDBA_PAGE_MODIFY,
     WIXSTDBA_PAGE_PROGRESS,
@@ -71,7 +69,6 @@ static LPCWSTR vrgwzPageNames[] = {
     L"Loading",
     L"Help",
     L"Install",
-    L"Options",
     L"FilesInUse",
     L"Modify",
     L"Progress",
@@ -91,18 +88,13 @@ enum WIXSTDBA_CONTROL
 
     // Welcome page
     WIXSTDBA_CONTROL_INSTALL_BUTTON,
-    WIXSTDBA_CONTROL_OPTIONS_BUTTON,
     WIXSTDBA_CONTROL_EULA_RICHEDIT,
     WIXSTDBA_CONTROL_EULA_LINK,
     WIXSTDBA_CONTROL_EULA_ACCEPT_CHECKBOX,
     WIXSTDBA_CONTROL_WELCOME_CANCEL_BUTTON,
     WIXSTDBA_CONTROL_VERSION_LABEL,
-
-    // Options page
     WIXSTDBA_CONTROL_FOLDER_EDITBOX,
     WIXSTDBA_CONTROL_BROWSE_BUTTON,
-    WIXSTDBA_CONTROL_OK_BUTTON,
-    WIXSTDBA_CONTROL_CANCEL_BUTTON,
 
     // FilesInUse page
     WIXSTDBA_CONTROL_FILESINUSE_TEXT,
@@ -164,7 +156,6 @@ static THEME_ASSIGN_CONTROL_ID vrgInitControls[] = {
     { WIXSTDBA_CONTROL_HELP_CANCEL_BUTTON, L"HelpCancelButton" },
 
     { WIXSTDBA_CONTROL_INSTALL_BUTTON, L"InstallButton" },
-    { WIXSTDBA_CONTROL_OPTIONS_BUTTON, L"OptionsButton" },
     { WIXSTDBA_CONTROL_EULA_RICHEDIT, L"EulaRichedit" },
     { WIXSTDBA_CONTROL_EULA_LINK, L"EulaHyperlink" },
     { WIXSTDBA_CONTROL_EULA_ACCEPT_CHECKBOX, L"EulaAcceptCheckbox" },
@@ -173,8 +164,6 @@ static THEME_ASSIGN_CONTROL_ID vrgInitControls[] = {
 
     { WIXSTDBA_CONTROL_FOLDER_EDITBOX, L"FolderEditbox" },
     { WIXSTDBA_CONTROL_BROWSE_BUTTON, L"BrowseButton" },
-    { WIXSTDBA_CONTROL_OK_BUTTON, L"OptionsOkButton" },
-    { WIXSTDBA_CONTROL_CANCEL_BUTTON, L"OptionsCancelButton" },
 
     { WIXSTDBA_CONTROL_FILESINUSE_TEXT, L"FilesInUseText" },
     { WIXSTDBA_CONTROL_FILESINUSE_CLOSE_RADIOBUTTON, L"FilesInUseCloseRadioButton" },
@@ -1653,17 +1642,6 @@ private: // privates
         }
         BalExitOnFailure(hr, "Failed to read wixstdba options from BootstrapperApplication.xml manifest.");
 
-        hr = XmlGetAttributeNumber(pNode, L"SuppressOptionsUI", &dwBool);
-        if (S_FALSE == hr)
-        {
-            hr = S_OK;
-        }
-        else if (SUCCEEDED(hr))
-        {
-            m_fSuppressOptionsUI = 0 < dwBool;
-        }
-        BalExitOnFailure(hr, "Failed to get SuppressOptionsUI value.");
-
         dwBool = 0;
         hr = XmlGetAttributeNumber(pNode, L"SuppressDowngradeFailure", &dwBool);
         if (S_FALSE == hr)
@@ -1990,20 +1968,8 @@ private: // privates
                 pBA->OnClickAcceptCheckbox();
                 return 0;
 
-            case WIXSTDBA_CONTROL_OPTIONS_BUTTON:
-                pBA->OnClickOptionsButton();
-                return 0;
-
             case WIXSTDBA_CONTROL_BROWSE_BUTTON:
-                pBA->OnClickOptionsBrowseButton();
-                return 0;
-
-            case WIXSTDBA_CONTROL_OK_BUTTON:
-                pBA->OnClickOptionsOkButton();
-                return 0;
-
-            case WIXSTDBA_CONTROL_CANCEL_BUTTON:
-                pBA->OnClickOptionsCancelButton();
+                pBA->OnClickBrowseButton();
                 return 0;
 
             case WIXSTDBA_CONTROL_INSTALL_BUTTON:
@@ -2447,22 +2413,6 @@ private: // privates
                     BOOL fAcceptedLicense = !ThemeControlExists(m_pTheme, WIXSTDBA_CONTROL_EULA_ACCEPT_CHECKBOX) || !ThemeControlEnabled(m_pTheme, WIXSTDBA_CONTROL_EULA_ACCEPT_CHECKBOX) || ThemeIsControlChecked(m_pTheme, WIXSTDBA_CONTROL_EULA_ACCEPT_CHECKBOX);
                     ThemeControlEnable(m_pTheme, WIXSTDBA_CONTROL_INSTALL_BUTTON, fAcceptedLicense);
 
-                    // If there is an "Options" page, the "Options" button exists, and it hasn't been suppressed, then enable the button.
-                    BOOL fOptionsEnabled = m_rgdwPageIds[WIXSTDBA_PAGE_OPTIONS] && ThemeControlExists(m_pTheme, WIXSTDBA_CONTROL_OPTIONS_BUTTON) && !m_fSuppressOptionsUI;
-                    ThemeControlEnable(m_pTheme, WIXSTDBA_CONTROL_OPTIONS_BUTTON, fOptionsEnabled);
-
-                    // Show/Hide the version label if it exists.
-                    if (m_rgdwPageIds[WIXSTDBA_PAGE_OPTIONS] && ThemeControlExists(m_pTheme, WIXSTDBA_CONTROL_VERSION_LABEL) && !m_fShowVersion)
-                    {
-                        ThemeShowControl(m_pTheme, WIXSTDBA_CONTROL_VERSION_LABEL, SW_HIDE);
-                    }
-                }
-                else if (m_rgdwPageIds[WIXSTDBA_PAGE_MODIFY] == dwNewPageId)
-                {
-                    ThemeControlEnable(m_pTheme, WIXSTDBA_CONTROL_REPAIR_BUTTON, !m_fSuppressRepair);
-                }
-                else if (m_rgdwPageIds[WIXSTDBA_PAGE_OPTIONS] == dwNewPageId)
-                {
                     HRESULT hr = BalGetStringVariable(WIXSTDBA_VARIABLE_INSTALL_FOLDER, &sczUnformattedText);
                     if (SUCCEEDED(hr))
                     {
@@ -2471,6 +2421,10 @@ private: // privates
                         BalFormatString(sczUnformattedText, &sczText);
                         ThemeSetTextControl(m_pTheme, WIXSTDBA_CONTROL_FOLDER_EDITBOX, sczText);
                     }
+                }
+                else if (m_rgdwPageIds[WIXSTDBA_PAGE_MODIFY] == dwNewPageId)
+                {
+                    ThemeControlEnable(m_pTheme, WIXSTDBA_CONTROL_REPAIR_BUTTON, !m_fSuppressRepair);
                 }
                 else if (m_rgdwPageIds[WIXSTDBA_PAGE_SUCCESS] == dwNewPageId) // on the "Success" page, check if the restart or launch button should be enabled.
                 {
@@ -2628,9 +2582,8 @@ private: // privates
                     {
                         THEME_CONTROL* pControl = m_pTheme->rgControls + pPage->rgdwControlIndices[i];
 
-                        // If we are on the install, options or modify pages and this is a named control, try to set its default state.
+                        // If we are on the install or modify pages and this is a named control, try to set its default state.
                         if ((m_rgdwPageIds[WIXSTDBA_PAGE_INSTALL] == dwNewPageId ||
-                             m_rgdwPageIds[WIXSTDBA_PAGE_OPTIONS] == dwNewPageId ||
                              m_rgdwPageIds[WIXSTDBA_PAGE_MODIFY] == dwNewPageId) &&
                              pControl->sczName && *pControl->sczName)
                         {
@@ -2779,20 +2732,9 @@ private: // privates
 
 
     //
-    // OnClickOptionsButton - show the options page.
+    // OnClickBrowseButton - browse for install folder on the install page.
     //
-    void OnClickOptionsButton()
-    {
-        SavePageSettings(WIXSTDBA_PAGE_INSTALL);
-        m_stateBeforeOptions = m_state;
-        SetState(WIXSTDBA_STATE_OPTIONS, S_OK);
-    }
-
-
-    //
-    // OnClickOptionsBrowseButton - browse for install folder on the options page.
-    //
-    void OnClickOptionsBrowseButton()
+    void OnClickBrowseButton()
     {
         WCHAR wzPath[MAX_PATH] = { };
         BROWSEINFOW browseInfo = { };
@@ -2816,10 +2758,11 @@ private: // privates
         return;
     }
 
+
     //
-    // OnClickOptionsOkButton - accept the changes made by the options page.
+    // OnClickInstallButton - start the install by planning the packages.
     //
-    void OnClickOptionsOkButton()
+    void OnClickInstallButton()
     {
         HRESULT hr = S_OK;
         LPWSTR sczPath = NULL;
@@ -2835,31 +2778,12 @@ private: // privates
             ExitOnFailure(hr, "Failed to set the install folder.");
         }
 
-        SavePageSettings(WIXSTDBA_PAGE_OPTIONS);
-
-    LExit:
-        SetState(m_stateBeforeOptions, S_OK);
-        return;
-    }
-
-
-    //
-    // OnClickOptionsCancelButton - discard the changes made by the options page.
-    //
-    void OnClickOptionsCancelButton()
-    {
-        SetState(m_stateBeforeOptions, S_OK);
-    }
-
-
-    //
-    // OnClickInstallButton - start the install by planning the packages.
-    //
-    void OnClickInstallButton()
-    {
         SavePageSettings(WIXSTDBA_PAGE_INSTALL);
 
         this->OnPlan(BOOTSTRAPPER_ACTION_INSTALL);
+
+    LExit:
+        return;
     }
 
 
@@ -3096,7 +3020,7 @@ private: // privates
             state = WIXSTDBA_STATE_FAILED;
         }
 
-        if (WIXSTDBA_STATE_OPTIONS == state || WIXSTDBA_STATE_FILESINUSE == state || m_state < state)
+        if (WIXSTDBA_STATE_FILESINUSE == state || m_state < state)
         {
             ::PostMessageW(m_hWnd, WM_WIXSTDBA_CHANGE_STATE, 0, state);
         }
@@ -3173,10 +3097,6 @@ private: // privates
                     *pdwPageId = m_rgdwPageIds[WIXSTDBA_PAGE_MODIFY];
                     break;
                 }
-                break;
-
-            case WIXSTDBA_STATE_OPTIONS:
-                *pdwPageId = m_rgdwPageIds[WIXSTDBA_PAGE_OPTIONS];
                 break;
 
             case WIXSTDBA_STATE_FILESINUSE:
@@ -3529,7 +3449,6 @@ public:
 
         m_sczLicenseFile = NULL;
         m_sczLicenseUrl = NULL;
-        m_fSuppressOptionsUI = FALSE;
         m_fSuppressDowngradeFailure = FALSE;
         m_fSuppressRepair = FALSE;
         m_fShowVersion = FALSE;
@@ -3618,7 +3537,6 @@ private:
     HWND m_hWnd;
 
     WIXSTDBA_STATE m_state;
-    WIXSTDBA_STATE m_stateBeforeOptions;
     HRESULT m_hrFinal;
 
     BOOL m_fStartedExecution;
@@ -3632,7 +3550,6 @@ private:
 
     LPWSTR m_sczLicenseFile;
     LPWSTR m_sczLicenseUrl;
-    BOOL m_fSuppressOptionsUI;
     BOOL m_fSuppressDowngradeFailure;
     BOOL m_fSuppressRepair;
     BOOL m_fShowVersion;
